@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catch the Blocks</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 10px;
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            color: #fff;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .hud-item {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+
+        .score {
+            color: #00ff88;
+        }
+
+        .misses {
+            color: #ff0066;
+        }
+
+        #gameOver {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            border-radius: 10px;
+            z-index: 100;
+        }
+
+        #gameOver.show {
+            display: flex;
+        }
+
+        .game-over-content {
+            text-align: center;
+            animation: slideDown 0.5s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .game-over-title {
+            font-size: 72px;
+            color: #ff0066;
+            text-shadow: 0 0 30px rgba(255, 0, 102, 0.8);
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        .final-score {
+            font-size: 36px;
+            color: #00ffff;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+            margin-bottom: 30px;
+        }
+
+        #restartBtn {
+            font-size: 24px;
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 0 30px rgba(102, 126, 234, 0.6);
+            transition: all 0.3s ease;
+        }
+
+        #restartBtn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 40px rgba(102, 126, 234, 0.9);
+        }
+
+        #restartBtn:active {
+            transform: scale(0.95);
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            text-align: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="hud">
+            <div class="hud-item">Score: <span class="score" id="scoreDisplay">0</span></div>
+            <div class="hud-item">Misses: <span class="misses" id="missesDisplay">0</span>/3</div>
+        </div>
+        <div class="instructions">
+            Use Arrow Keys or A/D to move the paddle
+        </div>
+        <div id="gameOver">
+            <div class="game-over-content">
+                <div class="game-over-title">GAME OVER</div>
+                <div class="final-score">Final Score: <span id="finalScore">0</span></div>
+                <button id="restartBtn">RESTART</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const missesDisplay = document.getElementById('missesDisplay');
+        const gameOverScreen = document.getElementById('gameOver');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const restartBtn = document.getElementById('restartBtn');
+
+        // Create sounds using Web Audio API
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playTone(frequency, duration, type = 'sine') {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = frequency;
+            oscillator.type = type;
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        function playCatchSound() {
+            playTone(800, 0.1, 'sine');
+            setTimeout(() => playTone(1200, 0.1, 'sine'), 50);
+        }
+
+        function playMissSound() {
+            playTone(200, 0.3, 'sawtooth');
+        }
+
+        function playGameOverSound() {
+            playTone(400, 0.2, 'square');
+            setTimeout(() => playTone(300, 0.2, 'square'), 200);
+            setTimeout(() => playTone(200, 0.4, 'square'), 400);
+        }
+
+        function playRestartSound() {
+            playTone(600, 0.1, 'sine');
+            setTimeout(() => playTone(800, 0.1, 'sine'), 100);
+            setTimeout(() => playTone(1000, 0.15, 'sine'), 200);
+        }
+
+        // Game state
+        let gameState = {
+            score: 0,
+            misses: 0,
+            isGameOver: false,
+            gameSpeed: 1,
+            lastSpeedIncrease: 0
+        };
+
+        // Paddle
+        const paddle = {
+            width: 120,
+            height: 20,
+            x: canvas.width / 2 - 60,
+            y: canvas.height - 40,
+            speed: 8,
+            dx: 0
+        };
+
+        // Blocks
+        let blocks = [];
+        const blockWidth = 40;
+        const blockHeight = 40;
+        let blockSpawnTimer = 0;
+        const baseSpawnInterval = 80; // frames
+
+        // Input handling
+        const keys = {};
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (['ArrowLeft', 'ArrowRight', 'a', 'd', 'A', 'D'].includes(e.key)) {
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // Restart button
+        restartBtn.addEventListener('click', () => {
+            playRestartSound();
+            resetGame();
+        });
+
+        function resetGame() {
+            gameState = {
+                score: 0,
+                misses: 0,
+                isGameOver: false,
+                gameSpeed: 1,
+                lastSpeedIncrease: 0
+            };
+            blocks = [];
+            paddle.x = canvas.width / 2 - paddle.width / 2;
+            paddle.dx = 0;
+            blockSpawnTimer = 0;
+            updateHUD();
+            gameOverScreen.classList.remove('show');
+            gameLoop();
+        }
+
+        function spawnBlock() {
+            const x = Math.random() * (canvas.width - blockWidth);
+            blocks.push({
+                x: x,
+                y: -blockHeight,
+                width: blockWidth,
+                height: blockHeight,
+                speed: 2 * gameState.gameSpeed,
+                color: `hsl(${Math.random() * 360}, 100%, 60%)`
+            });
+        }
+
+        function updatePaddle() {
+            paddle.dx = 0;
+            
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                paddle.dx = -paddle.speed;
+            }
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                paddle.dx = paddle.speed;
+            }
+
+            paddle.x += paddle.dx;
+
+            // Boundary check
+            if (paddle.x < 0) paddle.x = 0;
+            if (paddle.x + paddle.width > canvas.width) {
+                paddle.x = canvas.width - paddle.width;
+            }
+        }
+
+        function updateBlocks() {
+            for (let i = blocks.length - 1; i >= 0; i--) {
+                const block = blocks[i];
+                block.y += block.speed;
+
+                // Check collision with paddle
+                if (
+                    block.y + block.height >= paddle.y &&
+                    block.y <= paddle.y + paddle.height &&
+                    block.x + block.width >= paddle.x &&
+                    block.x <= paddle.x + paddle.width
+                ) {
+                    // Caught the block
+                    playCatchSound();
+                    gameState.score += 10;
+                    blocks.splice(i, 1);
+                    updateHUD();
+                }
+                // Check if block missed
+                else if (block.y > canvas.height) {
+                    playMissSound();
+                    gameState.misses++;
+                    blocks.splice(i, 1);
+                    updateHUD();
+
+                    if (gameState.misses >= 3) {
+                        gameOver();
+                    }
+                }
+            }
+        }
+
+        function updateGameSpeed() {
+            // Increase speed every 100 points
+            const speedLevel = Math.floor(gameState.score / 100);
+            if (speedLevel > gameState.lastSpeedIncrease) {
+                gameState.gameSpeed = 1 + speedLevel * 0.3;
+                gameState.lastSpeedIncrease = speedLevel;
+            }
+        }
+
+        function drawPaddle() {
+            // Draw glow
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#00ffff';
+            
+            // Draw paddle with gradient
+            const gradient = ctx.createLinearGradient(
+                paddle.x, paddle.y, 
+                paddle.x, paddle.y + paddle.height
+            );
+            gradient.addColorStop(0, '#00ffff');
+            gradient.addColorStop(1, '#00cccc');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 10);
+            ctx.fill();
+            
+            ctx.shadowBlur = 0;
+        }
+
+        function drawBlocks() {
+            blocks.forEach(block => {
+                // Draw glow
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = block.color;
+                
+                ctx.fillStyle = block.color;
+                ctx.beginPath();
+                ctx.roundRect(block.x, block.y, block.width, block.height, 8);
+                ctx.fill();
+                
+                ctx.shadowBlur = 0;
+            });
+        }
+
+        function drawBackground() {
+            // Starfield effect
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            for (let i = 0; i < 50; i++) {
+                const x = (Date.now() * 0.01 + i * 17) % canvas.width;
+                const y = (Date.now() * 0.02 + i * 23) % canvas.height;
+                ctx.fillRect(x, y, 2, 2);
+            }
+        }
+
+        function updateHUD() {
+            scoreDisplay.textContent = gameState.score;
+            missesDisplay.textContent = gameState.misses;
+        }
+
+        function gameOver() {
+            gameState.isGameOver = true;
+            playGameOverSound();
+            finalScoreDisplay.textContent = gameState.score;
+            gameOverScreen.classList.add('show');
+        }
+
+        function gameLoop() {
+            if (gameState.isGameOver) return;
+
+            // Clear canvas
+            ctx.fillStyle = 'rgba(26, 26, 46, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw background effects
+            drawBackground();
+
+            // Update game speed
+            updateGameSpeed();
+
+            // Spawn blocks
+            blockSpawnTimer++;
+            const spawnInterval = baseSpawnInterval / gameState.gameSpeed;
+            if (blockSpawnTimer >= spawnInterval) {
+                spawnBlock();
+                blockSpawnTimer = 0;
+            }
+
+            // Update
+            updatePaddle();
+            updateBlocks();
+
+            // Draw
+            drawBlocks();
+            drawPaddle();
+
+            // Continue loop
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Polyfill for roundRect if not available
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius) {
+                this.beginPath();
+                this.moveTo(x + radius, y);
+                this.lineTo(x + width - radius, y);
+                this.quadraticCurveTo(x + width, y, x + width, y + radius);
+                this.lineTo(x + width, y + height - radius);
+                this.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                this.lineTo(x + radius, y + height);
+                this.quadraticCurveTo(x, y + height, x, y + height - radius);
+                this.lineTo(x, y + radius);
+                this.quadraticCurveTo(x, y, x + radius, y);
+                this.closePath();
+            };
+        }
+
+        // Start game
+        updateHUD();
+        gameLoop();
+    </script>
+</body>
+</html>
