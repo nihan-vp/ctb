@@ -188,15 +188,7 @@
         const finalScoreDisplay = document.getElementById('finalScore');
         const restartBtn = document.getElementById('restartBtn');
 
-        // Sound effects using data URIs (simple beep sounds)
-        const sounds = {
-            catch: new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='),
-            miss: new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='),
-            gameOver: new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='),
-            restart: new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=')
-        };
-
-        // Create more distinctive sounds using Web Audio API
+        // Create sounds using Web Audio API
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
         function playTone(frequency, duration, type = 'sine') {
@@ -466,6 +458,7 @@
         // Polyfill for roundRect if not available
         if (!CanvasRenderingContext2D.prototype.roundRect) {
             CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius) {
+                this.beginPath();
                 this.moveTo(x + radius, y);
                 this.lineTo(x + width - radius, y);
                 this.quadraticCurveTo(x + width, y, x + width, y + radius);
@@ -475,6 +468,7 @@
                 this.quadraticCurveTo(x, y + height, x, y + height - radius);
                 this.lineTo(x, y + radius);
                 this.quadraticCurveTo(x, y, x + radius, y);
+                this.closePath();
             };
         }
 
